@@ -1,0 +1,4 @@
+name = Custom Image Feed
+description = Custom Module used to import csv images into paragraphs carousel.
+package = Custom
+core = 7.x

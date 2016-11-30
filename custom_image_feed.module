@@ -1,0 +1,96 @@
+<?php
+
+/**
+ * Implements hook_feeds_processor_targets_alter().
+ */
+function custom_image_feed_feeds_processor_targets_alter(&$targets, $type, $bundle) {
+  if ($type == 'node' && $bundle == 'project') {
+    $targets['paragraph_image_carousel_temp'] = array(
+      'name' => t('Image carousel for the field_project_image_carousel'),
+      'description' => t('If populated and host entity has a field_project_image_carousel, this value will be saved as a Image carousel to this field'),
+      'callback' => 'custom_image_feed_feeds_paragraph_image_carousel_set_target',
+    );
+  }
+}
+
+/**
+ * Mapping callback for the "Image Carousel Paragraph Bundle for field_project_image_carousel" target
+ */
+function custom_image_feed_feeds_paragraph_image_carousel_set_target($source, $entity, $target, $value, $mapping) {
+
+if (!empty($value[0])) {
+   //assign fid for processing.
+    $entity->paragraph_image_carousel_temp = $value[0];
+  }
+}
+
+/**
+ * Implements hook_node_insert().
+ */
+function custom_image_feed_node_insert($node) {
+  // If the node is being created and has a paragraph_image_carousel_temp value from Feeds,
+  // create and attach a new paragraph entity
+  if (isset($node->paragraph_image_carousel_temp)) {
+    custom_image_feed_create_attach_field_project_image_carousel_image_carousel($node, $node->paragraph_image_carousel_temp);
+  }
+}
+
+/**
+ * Implements hook_node_update().
+ */
+function custom_image_feed_node_update($node) {
+  // If the node is being updated and has a paragraph_image_carousel_temp value from Feeds, process it
+  if (isset($node->paragraph_image_carousel_temp)) {
+      custom_image_feed_create_attach_field_project_image_carousel_image_carousel($node, $node->paragraph_image_carousel_temp);
+    $node->paragraph_image_carousel_temp = "";
+  }
+}
+
+/**
+ * Creates a new image carousel paragraph entity and attaches it to field_project_image_carousel
+ *
+ * @param object $node
+ *   Node to attach the paragraph entity to
+ * @param string $content
+ *   Content for the entity
+ */
+function custom_image_feed_create_attach_field_project_image_carousel_image_carousel($node, $content) {
+  // Create a new "Image Carousel" paragraph item
+
+  // Load the file object from the fid that is $content from the feed.
+  if ($node->paragraph_image_carousel_temp == $content) {
+      $file_attach = file_load($content);
+
+    // create the image carousel paragraph for the image to go into.
+    $paragraph_carousel = entity_create('paragraphs_item', array('field_name' => 'field_project_image_carousel', 'bundle' => 'carousel_image'));
+    $paragraph_carousel->is_new = TRUE;
+    $key = count($node->field_project_image_carousel[LANGUAGE_NONE]);
+    
+/** 
+ *  The field_project_images has alt text that also needs to be moved. 
+ *  Instead of exporting it in the view that gives the fid and making another custom target, 
+ *  we just copy the value from the already existing field.
+ */
+    // Add alt text from node field_project_images alt text.
+    $alt = $node->field_project_images[LANGUAGE_NONE][$key]['alt'];
+    $file_attach->alt = $alt;
+    // Attach file object as array to image field (field setup to use 1 image)
+    // If exporting views data, set the multivalue settings to display each instance on it's own line. 
+    $paragraph_carousel->field_carousel_image[$node->language][] = (array)$file_attach;
+    
+
+    $paragraph_carousel->setHostEntity('node', $node);
+
+    if (isset($node->field_project_image_carousel)) {
+      $paragraph_carousel->save(TRUE);
+
+
+      $node->field_project_image_carousel[$node->language][$key] = array(
+          'value' => $paragraph_carousel->item_id,
+          'revision_id' => $paragraph_carousel->revision_id
+        );
+
+      field_attach_update('node', $node);
+    }
+  }
+}
